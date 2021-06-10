@@ -15,6 +15,7 @@ from django.http import (
 from django.template.response import TemplateResponse
 from django.urls import NoReverseMatch, Resolver404, resolve, reverse
 from django.utils.decorators import method_decorator
+from django.utils.http import is_safe_url
 from django.utils.functional import LazyObject
 from django.utils.module_loading import import_string
 from django.utils.text import capfirst
@@ -385,7 +386,19 @@ class AdminSite:
         Display the login form for the given HttpRequest.
         """
         if request.method == 'GET' and self.has_permission(request):
-            # Already logged-in, redirect to admin index
+            # Already logged-in,
+            # redirect to the user-originating redirect URL if it's safe
+            redirect_to = request.GET.get(REDIRECT_FIELD_NAME, '')
+            if redirect_to:
+                url_is_safe = is_safe_url(
+                    url=redirect_to,
+                    allowed_hosts={request.get_host()},
+                    require_https=request.is_secure(),
+                )
+                if url_is_safe:
+                    return HttpResponseRedirect(redirect_to)
+
+            # redirect to admin index
             index_path = reverse('admin:index', current_app=self.name)
             return HttpResponseRedirect(index_path)
 
